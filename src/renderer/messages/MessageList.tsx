@@ -5,6 +5,7 @@
  */
 
 import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage } from '@/common/chatLib';
+import { useConversationContextSafe } from '@/renderer/context/ConversationContext';
 import { iconColors } from '@/renderer/theme/colors';
 import { Image } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
@@ -17,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 import { uuid } from '../utils/common';
 import HOC from '../utils/HOC';
+import { addEventListener } from '../utils/emitter';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
 import type { FileChangeInfo } from './codex/MessageFileChanges';
 import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
@@ -92,6 +94,7 @@ const MessageItem: React.FC<{ message: TMessage }> = React.memo(
 const MessageList: React.FC<{ className?: string }> = () => {
   const list = useMessageList();
   const { t } = useTranslation();
+  const conversationContext = useConversationContextSafe();
 
   // Pre-process message list to group Codex turn_diff messages
   const processedList = useMemo(() => {
@@ -147,6 +150,34 @@ const MessageList: React.FC<{ className?: string }> = () => {
     messages: list,
     itemCount: processedList.length,
   });
+
+  React.useEffect(() => {
+    const off = addEventListener('cron.focus.message', ({ conversationId, msgId }) => {
+      if (!conversationContext || conversationContext.conversationId !== conversationId) {
+        return;
+      }
+
+      const targetIndex = processedList.findIndex((item) => {
+        if (!('msg_id' in item)) {
+          return false;
+        }
+        return item.msg_id === msgId;
+      });
+
+      if (targetIndex >= 0) {
+        virtuosoRef.current?.scrollToIndex({
+          index: targetIndex,
+          align: 'center',
+          behavior: 'smooth',
+        });
+        return;
+      }
+
+      scrollToBottom('smooth');
+    });
+
+    return off;
+  }, [conversationContext, processedList, scrollToBottom, virtuosoRef]);
 
   // Click scroll button
   const handleScrollButtonClick = () => {

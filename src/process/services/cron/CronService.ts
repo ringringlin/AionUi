@@ -13,6 +13,7 @@ import { copyFilesToDirectory } from '../../utils';
 import { cronBusyGuard } from './CronBusyGuard';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
+import { cronNotificationService } from './CronNotificationService';
 
 /**
  * Parameters for creating a new cron job
@@ -283,6 +284,10 @@ class CronService {
    */
   private async executeJob(job: CronJob): Promise<void> {
     const { conversationId } = job.metadata;
+    let triggerMsgId: string | undefined;
+    let executionStatus: 'ok' | 'error' | 'skipped' = 'error';
+    let executionError: string | undefined;
+    let executedAtMs = Date.now();
 
     // Check if conversation is busy
     const isBusy = cronBusyGuard.isProcessing(conversationId);
@@ -293,10 +298,22 @@ class CronService {
         // Max retries exceeded, skip this run
         job.state.lastStatus = 'skipped';
         job.state.lastError = `Conversation busy after ${job.state.maxRetries || 3} retries`;
+        executionStatus = 'skipped';
+        executionError = job.state.lastError;
+        executedAtMs = Date.now();
         job.state.retryCount = 0; // Reset for next trigger
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         ipcBridge.cron.onJobUpdated.emit(job);
+        ipcBridge.cron.onJobExecuted.emit({
+          jobId: job.id,
+          conversationId,
+          conversationTitle: job.metadata.conversationTitle,
+          status: executionStatus,
+          error: executionError,
+          triggerMsgId,
+          executedAtMs,
+        });
         return;
       }
 
@@ -311,6 +328,7 @@ class CronService {
 
     // Update state before execution
     job.state.lastRunAtMs = Date.now();
+    executedAtMs = job.state.lastRunAtMs;
     job.state.runCount++;
 
     try {
@@ -318,6 +336,7 @@ class CronService {
       // IPC invoke doesn't work in main process - it's for renderer->main communication
       const messageText = job.target.payload.text;
       const msgId = uuid();
+      triggerMsgId = msgId;
 
       // Get or build task from WorkerManage
       // For cron jobs, we need yoloMode=true (auto-approve)
@@ -340,24 +359,46 @@ class CronService {
       } catch (err) {
         job.state.lastStatus = 'error';
         job.state.lastError = err instanceof Error ? err.message : 'Conversation not found';
+        executionStatus = 'error';
+        executionError = job.state.lastError;
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         const updatedJob = cronStore.getById(job.id);
         if (updatedJob) {
           ipcBridge.cron.onJobUpdated.emit(updatedJob);
         }
+        ipcBridge.cron.onJobExecuted.emit({
+          jobId: job.id,
+          conversationId,
+          conversationTitle: job.metadata.conversationTitle,
+          status: executionStatus,
+          error: executionError,
+          triggerMsgId,
+          executedAtMs,
+        });
         return;
       }
 
       if (!task) {
         job.state.lastStatus = 'error';
         job.state.lastError = 'Conversation not found';
+        executionStatus = 'error';
+        executionError = job.state.lastError;
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         const updatedJob = cronStore.getById(job.id);
         if (updatedJob) {
           ipcBridge.cron.onJobUpdated.emit(updatedJob);
         }
+        ipcBridge.cron.onJobExecuted.emit({
+          jobId: job.id,
+          conversationId,
+          conversationTitle: job.metadata.conversationTitle,
+          status: executionStatus,
+          error: executionError,
+          triggerMsgId,
+          executedAtMs,
+        });
         return;
       }
 
@@ -379,6 +420,8 @@ class CronService {
       job.state.lastStatus = 'ok';
       job.state.lastError = undefined;
       job.state.retryCount = 0;
+      executionStatus = 'ok';
+      executionError = undefined;
 
       // Update conversation modifyTime so it appears at the top of the list
       try {
@@ -391,6 +434,8 @@ class CronService {
       // Error
       job.state.lastStatus = 'error';
       job.state.lastError = error instanceof Error ? error.message : String(error);
+      executionStatus = 'error';
+      executionError = job.state.lastError;
       console.error(`[CronService] Job ${job.id} failed:`, error);
     }
 
@@ -403,6 +448,18 @@ class CronService {
     if (updatedJob) {
       ipcBridge.cron.onJobUpdated.emit(updatedJob);
     }
+
+    const executedPayload = {
+      jobId: job.id,
+      conversationId,
+      conversationTitle: job.metadata.conversationTitle,
+      status: executionStatus,
+      error: executionError,
+      triggerMsgId,
+      executedAtMs,
+    };
+    ipcBridge.cron.onJobExecuted.emit(executedPayload);
+    void cronNotificationService.notifyExecution(executedPayload);
   }
 
   /**

@@ -12,12 +12,13 @@ import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
 import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
 import { processCustomCss } from './utils/customCssProcessor';
 import UpdateModal from '@/renderer/components/UpdateModal';
+import { emitter } from '@/renderer/utils/emitter';
 
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -62,6 +63,7 @@ const Layout: React.FC<{
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const location = useLocation();
+  const navigate = useNavigate();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
   const collapsedRef = useRef(collapsed);
 
@@ -169,6 +171,24 @@ const Layout: React.FC<{
   useEffect(() => {
     collapsedRef.current = collapsed;
   }, [collapsed]);
+
+  useEffect(() => {
+    const unsub = ipcBridge.cron.openExecution.on(({ conversationId, msgId }) => {
+      if (!conversationId) {
+        return;
+      }
+
+      void navigate(`/conversation/${conversationId}`);
+      const payload = { conversationId, msgId };
+      emitter.emit('cron.focus.message', payload);
+      setTimeout(() => emitter.emit('cron.focus.message', payload), 400);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [navigate]);
+
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
       <div className='app-shell flex flex-col size-full min-h-0'>

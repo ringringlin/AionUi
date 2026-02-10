@@ -295,7 +295,16 @@ export const cron = {
   onJobCreated: bridge.buildEmitter<ICronJob>('cron.job-created'),
   onJobUpdated: bridge.buildEmitter<ICronJob>('cron.job-updated'),
   onJobRemoved: bridge.buildEmitter<{ jobId: string }>('cron.job-removed'),
-  onJobExecuted: bridge.buildEmitter<{ jobId: string; status: 'ok' | 'error' | 'skipped'; error?: string }>('cron.job-executed'),
+  onJobExecuted: bridge.buildEmitter<{
+    jobId: string;
+    conversationId: string;
+    conversationTitle?: string;
+    status: 'ok' | 'error' | 'skipped';
+    error?: string;
+    triggerMsgId?: string;
+    executedAtMs?: number;
+  }>('cron.job-executed'),
+  openExecution: bridge.buildEmitter<{ conversationId: string; msgId?: string }>('cron.open-execution'),
 };
 
 // Cron job types for IPC

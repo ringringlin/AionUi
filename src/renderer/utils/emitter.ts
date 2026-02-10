@@ -34,6 +34,8 @@ interface EventTypes {
   'preview.open': [{ content: string; contentType: PreviewContentType; metadata?: { title?: string; fileName?: string } }];
   // 填充输入框事件 / Fill sendbox input event
   'sendbox.fill': [string]; // prompt text to fill
+  // Cron notification jump to specific message
+  'cron.focus.message': [{ conversationId: string; msgId?: string }];
 }
 
 export const emitter = new EventEmitter<EventTypes>();
