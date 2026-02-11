@@ -299,12 +299,12 @@ export const cron = {
     jobId: string;
     conversationId: string;
     conversationTitle?: string;
+    jobName: string;
     status: 'ok' | 'error' | 'skipped';
     error?: string;
-    triggerMsgId?: string;
-    executedAtMs?: number;
+    summary?: string;
   }>('cron.job-executed'),
-  openExecution: bridge.buildEmitter<{ conversationId: string; msgId?: string }>('cron.open-execution'),
+  onNotificationClick: bridge.buildEmitter<{ conversationId: string }>('cron.notification-click'),
 };
 
 // Cron job types for IPC

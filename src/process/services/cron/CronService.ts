@@ -7,13 +7,13 @@
 import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
+import { app, BrowserWindow, Notification } from 'electron';
 import { Cron } from 'croner';
 import WorkerManage from '../../WorkerManage';
 import { copyFilesToDirectory } from '../../utils';
 import { cronBusyGuard } from './CronBusyGuard';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { cronStore, type CronJob, type CronSchedule } from './CronStore';
-import { cronNotificationService } from './CronNotificationService';
 
 /**
  * Parameters for creating a new cron job
@@ -38,6 +38,119 @@ class CronService {
   private timers: Map<string, Cron | NodeJS.Timeout> = new Map();
   private retryTimers: Map<string, NodeJS.Timeout> = new Map();
   private initialized = false;
+  private readonly completionWaitTimeoutMs = 5 * 60 * 1000;
+  private readonly resultSettleWindowMs = 2000;
+
+  private emitJobExecuted(event: { jobId: string; conversationId: string; conversationTitle?: string; jobName: string; status: 'ok' | 'error' | 'skipped'; error?: string; summary?: string }): void {
+    ipcBridge.cron.onJobExecuted.emit(event);
+    this.showSystemNotification(event);
+  }
+
+  private showSystemNotification(event: { conversationId: string; conversationTitle?: string; jobName: string; status: 'ok' | 'error' | 'skipped'; error?: string; summary?: string }): void {
+    if (!Notification.isSupported()) {
+      return;
+    }
+
+    const statusText = event.status === 'ok' ? '已完成' : event.status === 'error' ? '执行失败' : '已跳过';
+    const summaryText = event.summary ? `\n${event.summary}` : event.status === 'ok' ? '\n结果已生成，点击查看详情' : event.error ? `\n${event.error}` : '';
+    const notification = new Notification({
+      title: `定时任务${statusText}`,
+      body: `${event.jobName} · ${event.conversationTitle || event.conversationId}${summaryText}`,
+      silent: false,
+    });
+
+    notification.on('click', () => {
+      const windows = BrowserWindow.getAllWindows();
+      const mainWindow = windows[0];
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
+        }
+        mainWindow.show();
+        mainWindow.focus();
+
+        const targetHash = `#/conversation/${event.conversationId}`;
+        void mainWindow.webContents
+          .executeJavaScript(
+            `
+              try {
+                if (window.location.hash !== ${JSON.stringify(targetHash)}) {
+                  window.location.hash = ${JSON.stringify(targetHash)};
+                }
+              } catch (e) {
+                console.error('Failed to navigate from cron notification click:', e);
+              }
+            `,
+            true
+          )
+          .catch((error) => {
+            console.error('[CronService] Failed to navigate on notification click:', error);
+          });
+      } else if (!app.isReady()) {
+        return;
+      }
+
+      ipcBridge.cron.onNotificationClick.emit({ conversationId: event.conversationId });
+    });
+
+    notification.show();
+  }
+
+  private extractMessageText(content: unknown): string {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (typeof content === 'object' && content !== null && 'content' in (content as Record<string, unknown>)) {
+      const value = (content as { content?: unknown }).content;
+      return typeof value === 'string' ? value : '';
+    }
+    return '';
+  }
+
+  private buildSummary(text: string): string {
+    const normalized = text
+      .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) return '';
+    const maxLen = 120;
+    return normalized.length > maxLen ? `${normalized.slice(0, maxLen - 1)}…` : normalized;
+  }
+
+  private async waitForFinalResultSummary(conversationId: string, startAtMs: number): Promise<{ summary: string; completed: boolean }> {
+    const pollIntervalMs = 500;
+    const deadline = Date.now() + this.completionWaitTimeoutMs;
+    let latestCandidate = '';
+    let lastObservedSummary = '';
+    let lastObservedAt = 0;
+
+    while (Date.now() < deadline) {
+      const db = getDatabase();
+      const result = db.getConversationMessages(conversationId, 0, 200, 'DESC');
+      const related = result.data.filter((m) => m.position === 'left' && m.type === 'text' && (m.createdAt ?? 0) >= startAtMs);
+      const hasPendingOrWorking = result.data.some((m) => m.position === 'left' && (m.createdAt ?? 0) >= startAtMs && (m.status === 'pending' || m.status === 'work'));
+      const isProcessing = cronBusyGuard.isProcessing(conversationId);
+
+      if (related.length > 0) {
+        const latest = related[0];
+        const summary = this.buildSummary(this.extractMessageText(latest.content));
+        if (summary) {
+          latestCandidate = summary;
+          if (summary !== lastObservedSummary) {
+            lastObservedSummary = summary;
+            lastObservedAt = Date.now();
+          }
+        }
+      }
+      const stableFor = Date.now() - (lastObservedAt || startAtMs);
+      if (!isProcessing && !hasPendingOrWorking && stableFor >= this.resultSettleWindowMs) {
+        return { summary: latestCandidate, completed: true };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+
+    return { summary: latestCandidate, completed: false };
+  }
 
   /**
    * Initialize the cron service
@@ -284,10 +397,6 @@ class CronService {
    */
   private async executeJob(job: CronJob): Promise<void> {
     const { conversationId } = job.metadata;
-    let triggerMsgId: string | undefined;
-    let executionStatus: 'ok' | 'error' | 'skipped' = 'error';
-    let executionError: string | undefined;
-    let executedAtMs = Date.now();
 
     // Check if conversation is busy
     const isBusy = cronBusyGuard.isProcessing(conversationId);
@@ -298,21 +407,17 @@ class CronService {
         // Max retries exceeded, skip this run
         job.state.lastStatus = 'skipped';
         job.state.lastError = `Conversation busy after ${job.state.maxRetries || 3} retries`;
-        executionStatus = 'skipped';
-        executionError = job.state.lastError;
-        executedAtMs = Date.now();
         job.state.retryCount = 0; // Reset for next trigger
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         ipcBridge.cron.onJobUpdated.emit(job);
-        ipcBridge.cron.onJobExecuted.emit({
+        this.emitJobExecuted({
           jobId: job.id,
           conversationId,
           conversationTitle: job.metadata.conversationTitle,
-          status: executionStatus,
-          error: executionError,
-          triggerMsgId,
-          executedAtMs,
+          jobName: job.name,
+          status: 'skipped',
+          error: job.state.lastError,
         });
         return;
       }
@@ -327,8 +432,9 @@ class CronService {
     }
 
     // Update state before execution
-    job.state.lastRunAtMs = Date.now();
-    executedAtMs = job.state.lastRunAtMs;
+    const executionStartAtMs = Date.now();
+    let executionSummary = '';
+    job.state.lastRunAtMs = executionStartAtMs;
     job.state.runCount++;
 
     try {
@@ -336,7 +442,6 @@ class CronService {
       // IPC invoke doesn't work in main process - it's for renderer->main communication
       const messageText = job.target.payload.text;
       const msgId = uuid();
-      triggerMsgId = msgId;
 
       // Get or build task from WorkerManage
       // For cron jobs, we need yoloMode=true (auto-approve)
@@ -359,22 +464,19 @@ class CronService {
       } catch (err) {
         job.state.lastStatus = 'error';
         job.state.lastError = err instanceof Error ? err.message : 'Conversation not found';
-        executionStatus = 'error';
-        executionError = job.state.lastError;
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         const updatedJob = cronStore.getById(job.id);
         if (updatedJob) {
           ipcBridge.cron.onJobUpdated.emit(updatedJob);
         }
-        ipcBridge.cron.onJobExecuted.emit({
+        this.emitJobExecuted({
           jobId: job.id,
           conversationId,
           conversationTitle: job.metadata.conversationTitle,
-          status: executionStatus,
-          error: executionError,
-          triggerMsgId,
-          executedAtMs,
+          jobName: job.name,
+          status: 'error',
+          error: job.state.lastError,
         });
         return;
       }
@@ -382,22 +484,19 @@ class CronService {
       if (!task) {
         job.state.lastStatus = 'error';
         job.state.lastError = 'Conversation not found';
-        executionStatus = 'error';
-        executionError = job.state.lastError;
         this.updateNextRunTime(job);
         cronStore.update(job.id, { state: job.state });
         const updatedJob = cronStore.getById(job.id);
         if (updatedJob) {
           ipcBridge.cron.onJobUpdated.emit(updatedJob);
         }
-        ipcBridge.cron.onJobExecuted.emit({
+        this.emitJobExecuted({
           jobId: job.id,
           conversationId,
           conversationTitle: job.metadata.conversationTitle,
-          status: executionStatus,
-          error: executionError,
-          triggerMsgId,
-          executedAtMs,
+          jobName: job.name,
+          status: 'error',
+          error: job.state.lastError,
         });
         return;
       }
@@ -416,12 +515,18 @@ class CronService {
         await task.sendMessage({ input: messageText, msg_id: msgId, files: workspaceFiles });
       }
 
+      // Some agents return before streaming fully settles; only notify after final result is stable.
+      await cronBusyGuard.waitForIdle(conversationId, this.completionWaitTimeoutMs);
+      const finalResult = await this.waitForFinalResultSummary(conversationId, executionStartAtMs);
+      if (!finalResult.completed) {
+        throw new Error(`Timed out waiting for final result in conversation ${conversationId}`);
+      }
+      executionSummary = finalResult.summary;
+
       // Success
       job.state.lastStatus = 'ok';
       job.state.lastError = undefined;
       job.state.retryCount = 0;
-      executionStatus = 'ok';
-      executionError = undefined;
 
       // Update conversation modifyTime so it appears at the top of the list
       try {
@@ -434,8 +539,6 @@ class CronService {
       // Error
       job.state.lastStatus = 'error';
       job.state.lastError = error instanceof Error ? error.message : String(error);
-      executionStatus = 'error';
-      executionError = job.state.lastError;
       console.error(`[CronService] Job ${job.id} failed:`, error);
     }
 
@@ -448,18 +551,15 @@ class CronService {
     if (updatedJob) {
       ipcBridge.cron.onJobUpdated.emit(updatedJob);
     }
-
-    const executedPayload = {
+    this.emitJobExecuted({
       jobId: job.id,
       conversationId,
       conversationTitle: job.metadata.conversationTitle,
-      status: executionStatus,
-      error: executionError,
-      triggerMsgId,
-      executedAtMs,
-    };
-    ipcBridge.cron.onJobExecuted.emit(executedPayload);
-    void cronNotificationService.notifyExecution(executedPayload);
+      jobName: job.name,
+      status: job.state.lastStatus ?? 'ok',
+      error: job.state.lastError,
+      summary: job.state.lastStatus === 'ok' ? executionSummary : undefined,
+    });
   }
 
   /**

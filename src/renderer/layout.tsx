@@ -18,7 +18,6 @@ import { useDirectorySelection } from './hooks/useDirectorySelection';
 import { useMultiAgentDetection } from './hooks/useMultiAgentDetection';
 import { processCustomCss } from './utils/customCssProcessor';
 import UpdateModal from '@/renderer/components/UpdateModal';
-import { emitter } from '@/renderer/utils/emitter';
 
 const useDebug = () => {
   const [count, setCount] = useState(0);
@@ -59,11 +58,11 @@ const Layout: React.FC<{
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [customCss, setCustomCss] = useState<string>('');
+  const navigate = useNavigate();
   const { onClick } = useDebug();
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const location = useLocation();
-  const navigate = useNavigate();
   const workspaceAvailable = location.pathname.startsWith('/conversation/');
   const collapsedRef = useRef(collapsed);
 
@@ -172,22 +171,21 @@ const Layout: React.FC<{
     collapsedRef.current = collapsed;
   }, [collapsed]);
 
+  // Handle navigation when user clicks a system cron notification.
   useEffect(() => {
-    const unsub = ipcBridge.cron.openExecution.on(({ conversationId, msgId }) => {
+    const unsubscribe = ipcBridge.cron.onNotificationClick.on(({ conversationId }) => {
       if (!conversationId) {
         return;
       }
-
-      void navigate(`/conversation/${conversationId}`);
-      const payload = { conversationId, msgId };
-      emitter.emit('cron.focus.message', payload);
-      setTimeout(() => emitter.emit('cron.focus.message', payload), 400);
+      if (location.pathname !== `/conversation/${conversationId}`) {
+        void navigate(`/conversation/${conversationId}`);
+      }
     });
 
     return () => {
-      unsub();
+      unsubscribe();
     };
-  }, [navigate]);
+  }, [location.pathname, navigate]);
 
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
