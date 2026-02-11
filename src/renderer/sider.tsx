@@ -1,4 +1,4 @@
-import { ArrowCircleLeft, Plus, SettingTwo } from '@icon-park/react';
+import { ArrowCircleLeft, Plus, SettingTwo, Toolkit } from '@icon-park/react';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const navigate = useNavigate();
   const { closePreview } = usePreviewContext();
   const isSettings = pathname.startsWith('/settings');
+  const isSkillsPage = pathname.startsWith('/skills');
   const lastNonSettingsPathRef = useRef('/guid');
 
   useEffect(() => {
@@ -68,6 +69,23 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               >
                 <Plus theme='outline' size='24' fill={iconColors.primary} className='flex' />
                 <span className='collapsed-hidden font-bold text-t-primary'>{t('conversation.welcome.newConversation')}</span>
+              </div>
+            </Tooltip>
+            <Tooltip disabled={!collapsed} content={t('sidebar.skills', { defaultValue: 'Skills' })} position='right'>
+              <div
+                className={`flex items-center justify-start gap-10px px-12px py-8px hover:bg-hover rd-0.5rem mb-8px cursor-pointer group shrink-0 ${isSkillsPage ? 'bg-aou-2' : ''}`}
+                onClick={() => {
+                  closePreview();
+                  Promise.resolve(navigate('/skills')).catch((error) => {
+                    console.error('Navigation failed:', error);
+                  });
+                  if (onSessionClick) {
+                    onSessionClick();
+                  }
+                }}
+              >
+                <Toolkit theme='outline' size='24' fill={iconColors.primary} className='flex' />
+                <span className='collapsed-hidden font-bold text-t-primary'>{t('sidebar.skills', { defaultValue: 'Skills' })}</span>
               </div>
             </Tooltip>
             <WorkspaceGroupedHistory collapsed={collapsed} onSessionClick={onSessionClick}></WorkspaceGroupedHistory>
