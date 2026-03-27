@@ -572,6 +572,9 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
     const defaultEnabledSkills = preset.defaultEnabledSkills;
     const enabledByDefault =
       preset.id === 'morph-ppt' ||
+      preset.id === 'morph-ppt-2' ||
+      preset.id === 'morph-ppt-3' ||
+      preset.id === 'morph-ppt-4' ||
       preset.id === 'cowork' ||
       preset.id === 'openclaw-setup' ||
       preset.id === 'star-office-helper' ||

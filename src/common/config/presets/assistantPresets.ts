@@ -56,6 +56,102 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
+    id: 'morph-ppt-2',
+    avatar: '🎞️',
+    presetAgentType: 'gemini',
+    resourceDir: 'src/process/resources/assistant/morph-ppt-2',
+    ruleFiles: {
+      'en-US': 'morph-ppt.md',
+      'zh-CN': 'morph-ppt.zh-CN.md',
+    },
+    defaultEnabledSkills: ['morph-ppt-2'],
+    nameI18n: {
+      'en-US': 'Morph PPT 2.0',
+      'zh-CN': 'Morph PPT 2.0',
+    },
+    descriptionI18n: {
+      'en-US':
+        'Component-first Morph PPT assistant with template calibration as fallback and controlled freeform creativity.',
+      'zh-CN': '组件优先的 Morph PPT 助手，模板仅作为校准回退，并保留受控自由发挥能力。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Create a "future writing to present" PPT, like a moving letter',
+        'Create a Morph PPT showing two worldviews on the same problem, using transitions to switch perspective',
+        'Create a report-style PPT that looks artistic but stays executable; topic is up to you',
+      ],
+      'zh-CN': [
+        '做一份“未来寄给现在的建议”PPT，像一封会动的信。',
+        '做一份“同一问题的两种世界观”Morph PPT，用转场完成立场切换。',
+        '做一份“看似艺术，实则可执行”的汇报型 PPT，主题你定。',
+      ],
+    },
+  },
+  {
+    id: 'morph-ppt-3',
+    avatar: '🎬',
+    presetAgentType: 'gemini',
+    resourceDir: 'src/process/resources/assistant/morph-ppt-3',
+    ruleFiles: {
+      'en-US': 'morph-ppt.md',
+      'zh-CN': 'morph-ppt.zh-CN.md',
+    },
+    defaultEnabledSkills: ['morph-ppt-3'],
+    nameI18n: {
+      'en-US': 'Morph PPT 3.0',
+      'zh-CN': 'Morph PPT 3.0',
+    },
+    descriptionI18n: {
+      'en-US':
+        'Streamlined Morph assistant: component-first with remote-first fetch, local snapshot fallback, and faster single-pass verification.',
+      'zh-CN': '精简版 Morph 助手：组件优先、远端优先抓取，本地快照兜底，并使用更快的单次校验策略。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Create a "future writing to present" PPT, like a moving letter',
+        'Create a Morph PPT showing two worldviews on the same problem, using transitions to switch perspective',
+        'Create a report-style PPT that looks artistic but stays executable; topic is up to you',
+      ],
+      'zh-CN': [
+        '做一份“未来寄给现在的建议”PPT，像一封会动的信。',
+        '做一份“同一问题的两种世界观”Morph PPT，用转场完成立场切换。',
+        '做一份“看似艺术，实则可执行”的汇报型 PPT，主题你定。',
+      ],
+    },
+  },
+  {
+    id: 'morph-ppt-4',
+    avatar: '🎟️',
+    presetAgentType: 'gemini',
+    resourceDir: 'src/process/resources/assistant/morph-ppt-4',
+    ruleFiles: {
+      'en-US': 'morph-ppt.md',
+      'zh-CN': 'morph-ppt.zh-CN.md',
+    },
+    defaultEnabledSkills: ['morph-ppt-4'],
+    nameI18n: {
+      'en-US': 'Morph PPT 4.0',
+      'zh-CN': 'Morph PPT 4.0',
+    },
+    descriptionI18n: {
+      'en-US':
+        'Morph assistant with description-driven component borrowing: semantic fit first, non-clone composition, and topic-aligned recoloring.',
+      'zh-CN': '描述驱动的组件借鉴型 Morph 助手：先做语义匹配，再自由拼装，不做 1:1 复刻，并按主题统一重着色。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Create a Morph PPT that feels original and structured, without cloning any single template',
+        'Make a cinematic but readable Morph deck; topic is up to you',
+        'Use component ideas as inspiration, but keep composition fresh and theme-aligned',
+      ],
+      'zh-CN': [
+        '做一份原创但结构稳的 Morph PPT，不要复刻任何单一模板',
+        '做一份电影感但可读性很强的 Morph PPT，主题你定',
+        '借鉴组件思路但保持新鲜构图，并统一主题配色',
+      ],
+    },
+  },
+  {
     id: 'star-office-helper',
     avatar: '📺',
     presetAgentType: 'gemini',
