@@ -152,6 +152,38 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
+    id: 'morph-ppt-5',
+    avatar: '🎠',
+    presetAgentType: 'gemini',
+    resourceDir: 'src/process/resources/assistant/morph-ppt-5',
+    ruleFiles: {
+      'en-US': 'morph-ppt.md',
+      'zh-CN': 'morph-ppt.zh-CN.md',
+    },
+    defaultEnabledSkills: ['morph-ppt-5'],
+    nameI18n: {
+      'en-US': 'Morph PPT 5.0',
+      'zh-CN': 'Morph PPT 5.0',
+    },
+    descriptionI18n: {
+      'en-US':
+        'Intent-driven Morph assistant with strict anti-residue ghost gates and non-clone component borrowing.',
+      'zh-CN': '按页面意图借鉴组件的 Morph 助手，内置严格防残留 ghost 门禁，避免跨页内容累积与组件照抄。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Create a visually bold Morph PPT, but keep text highly readable and structure stable',
+        'Build a topic-first Morph deck that borrows component ideas without copying layouts',
+        'Make a creative but coherent Morph presentation; avoid generic motif repetition',
+      ],
+      'zh-CN': [
+        '做一份视觉大胆的 Morph PPT，但文字可读性要很高、结构要稳',
+        '做一份主题优先的 Morph PPT，借鉴组件思路但不要照抄布局',
+        '做一份有创意且统一的 Morph 演示，避免泛化母题反复出现',
+      ],
+    },
+  },
+  {
     id: 'dashboard-creator',
     avatar: '📊',
     presetAgentType: 'gemini',
