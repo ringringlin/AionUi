@@ -1,0 +1,12 @@
+[
+  {
+    "name": "deck-html-first-skill",
+    "description": "Deck A workflow: select template → fill content → emit HTML deck → optional PPT export",
+    "file": "skills/deck-html-first.md"
+  },
+  {
+    "name": "deck-pptx-direct-skill",
+    "description": "Deck B workflow: select template (as visual reference) → generate .pptx directly via officecli",
+    "file": "skills/deck-pptx-direct.md"
+  }
+]

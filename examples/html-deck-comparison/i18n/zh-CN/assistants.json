@@ -1,0 +1,10 @@
+{
+  "deck-html-first": {
+    "name": "演示稿 A · HTML 优先",
+    "description": "选模板 → 填内容 → 输出 HTML deck；按需高保真转 .pptx。"
+  },
+  "deck-pptx-direct": {
+    "name": "演示稿 B · 直出 PPTX",
+    "description": "选模板（仅作视觉参考）→ 用 officecli 直接生成 .pptx，无 HTML 中间产物。"
+  }
+}

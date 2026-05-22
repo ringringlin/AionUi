@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schemas/aion-extension-v1.json",
+  "name": "html-deck-comparison",
+  "displayName": "HTML Deck Comparison",
+  "version": "0.1.0",
+  "description": "Two side-by-side deck assistants for A/B comparing whether HTML as an intermediate artifact improves visual fidelity. Both share the same curated HTML template library (blue-professional, 8-bit-orbit, editorial-forest).",
+  "author": "AionUi",
+  "i18n": {
+    "localesDir": "i18n",
+    "defaultLocale": "en-US"
+  },
+  "engine": {
+    "aionui": "^1.0.0"
+  },
+  "contributes": {
+    "skills": "$file:contributes/skills.json"
+  }
+}

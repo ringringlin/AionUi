@@ -1,0 +1,10 @@
+{
+  "deck-html-first": {
+    "name": "Deck A · HTML First",
+    "description": "Pick template → fill content → emit HTML deck; export to .pptx on demand."
+  },
+  "deck-pptx-direct": {
+    "name": "Deck B · PPTX Direct",
+    "description": "Pick template (as visual reference) → generate .pptx directly via officecli, no HTML intermediate."
+  }
+}
